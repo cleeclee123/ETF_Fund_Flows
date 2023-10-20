@@ -67,6 +67,8 @@ def download_daily_treasury_par_yield_curve_rates(raw_path: str, year: int):
             output_file_name = latest_download_file(raw_path)
             renamed_output_file = f"{formatted_date_str}_daily_treasury_rates"
             df_temp = pd.read_csv(f"{raw_path}\{output_file_name}")
+            df_temp['Date'] = pd.to_datetime(df_temp['Date'])
+            df_temp['Date'] = df_temp['Date'].dt.strftime('%Y-%m-%d')
             df_temp.to_excel(f"{renamed_output_file}.xlsx", index=False)
 
             os.remove(f"{raw_path}\{output_file_name}")
@@ -110,7 +112,7 @@ def get_treasurygov_header(year: int, cj: http.cookiejar = None):
         "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/116.0.0.0 Safari/537.36",
     }
 
-    if (cookie_str == ""):
+    if cookie_str == "":
         del headers["Cookie"]
 
     return headers
@@ -155,6 +157,8 @@ def download_multi_year_treasury_par_yield_curve_rate(
         renamed = f"{renamed.split('.')[0]}.xlsx"
 
         df_temp = pd.read_csv(full_file_path)
+        df_temp['Date'] = pd.to_datetime(df_temp['Date'])
+        df_temp['Date'] = df_temp['Date'].dt.strftime('%Y-%m-%d')
         df_temp.to_excel(f"{renamed.split('.')[0]}.xlsx", index=False)
         os.remove(full_file_path)
 
@@ -180,7 +184,9 @@ def download_multi_year_treasury_par_yield_curve_rate(
 
     yield_df = pd.concat(dfs, ignore_index=True)
     years_str = str.join("_", [str(x) for x in years])
-    yield_df.to_excel(f"{years_str}_daily_treasury_rates.xlsx", index=False)
+    yield_df.to_excel(
+        os.path.join(raw_path, f"{years_str}_daily_treasury_rates.xlsx")
+    )
 
     return yield_df
 
@@ -188,8 +194,10 @@ def download_multi_year_treasury_par_yield_curve_rate(
 if __name__ == "__main__":
     start = time.time()
 
-    raw_path = r"C:\Users\chris\ETF_Fund_Flows\data"
-    df = download_multi_year_treasury_par_yield_curve_rate([2023, 2022, 2021, 2020, 2019], raw_path)
+    raw_path = r"C:\Users\chris\ETF_Fund_Flows\data\treasury"
+    df = download_multi_year_treasury_par_yield_curve_rate(
+        [2023, 2022, 2021, 2020, 2019], raw_path
+    )
     print(df)
 
     end = time.time()
