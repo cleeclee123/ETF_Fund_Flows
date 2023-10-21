@@ -117,7 +117,7 @@ if __name__ == "__main__":
     date_to = datetime.today()
     raw_path = r"C:\Users\chris\ETF_Fund_Flows\data\flow"
 
-    for ticker in ["VCLT", "LQD", "USIG", "IUSG"]:
+    for ticker in ["EDV", "ZROZ", "TLT", "TLTW"]:
         try:
             token = fetch_new_bearer_token(cj)
             bearer = token["fundApiKey"]
