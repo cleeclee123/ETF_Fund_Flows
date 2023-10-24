@@ -68,7 +68,9 @@ def vg_ticker_to_ticker_id(ticker: str, cj: http.cookiejar = None):
         return None
 
 
-def vg_get_pcf(ticker: str, cj: http.cookiejar = None) -> pd.DataFrame:
+def vg_get_pcf(
+    ticker: str, raw_path: str = None, cj: http.cookiejar = None
+) -> pd.DataFrame:
     ticker_id = vg_ticker_to_ticker_id(ticker, cj)
     if not ticker_id:
         return pd.DataFrame()
@@ -83,7 +85,10 @@ def vg_get_pcf(ticker: str, cj: http.cookiejar = None) -> pd.DataFrame:
         )
         res = requests.get(url, headers=headers)
         holdings = res.json()["holding"]
-        return pd.DataFrame(holdings)
+        df = pd.DataFrame(holdings)
+        if (raw_path):
+            df.to_excel(f"{raw_path}\{ticker}_pcf.xlsx", index=False) 
+        return df 
     except Exception as e:
         print(e)
         return pd.DataFrame()
@@ -183,13 +188,13 @@ def vg_get_historical_nav_prices(
                                     str(date).replace("/", "-")
                                 ):
                                     continue
-                                
+
                                 list.append({"date": date, "navPrice": price})
-                        
+
                         except Exception as e:
                             print(e)
                             continue
-                    
+
                     return list
 
                 else:
@@ -246,7 +251,7 @@ def vg_get_historical_nav_prices(
 
 
 if __name__ == "__main__":
-    ticker = "EDV"
+    ticker = "BND"
     # df = vg_get_pcf(ticker)
     # print(df)
 
@@ -258,5 +263,8 @@ if __name__ == "__main__":
     # )
 
     raw_path = r"C:\Users\chris\ETF_Fund_Flows\data\other"
-    ll = vg_get_historical_nav_prices(ticker, raw_path)
-    print(ll)
+    # ll = vg_get_historical_nav_prices(ticker, raw_path)
+    # print(ll)
+
+    pcf_df = vg_get_pcf("VTV", raw_path=raw_path)
+    print('sum shares ', pcf_df["shareQuantity"].sum())
