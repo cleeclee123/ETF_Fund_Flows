@@ -191,12 +191,12 @@ def multi_fetch_fund_flow_data(
 if __name__ == "__main__":
     # example
     cj = browser_cookie3.chrome()
-    date_from = datetime(2007, 5, 30)
+    date_from = datetime(2023, 1, 1)
     date_to = datetime.today()
     raw_path = r"C:\Users\chris\ETF_Fund_Flows\data\flow"
 
     bearer = "0QE2aa6trhK3hOmkf5zXwz6Riy7UWdk4V6HYw3UdZcRZV3myoV9MOfwNLL6FKHrpTN7IF7g12GSZ6r44jAfjte0B3APAaQdWRWZtW2qhYJrAXXwkpYJDFdkCng97prr7N4JAXkCI1zB7EiXrFEY8CIQclMLgQk2XHBZJiqJSIEgtWckHK3UPLfm12X9rhME9ac7gvcF3fWDo8A66X6RHXr3g9jzKeC62th75S1t6juvWjQYDCz65i7UlRfTVWDVV"
-    tickers = ["SPTL"]
+    tickers = ["SGOV", "SHV", "SHY", "IEI", "IEF", "TLH", "TLT", "GOVZ"]
     data = multi_fetch_fund_flow_data(tickers, bearer, date_from, date_to, raw_path)
     print(data)
     

@@ -7,6 +7,7 @@ import webbrowser
 import os
 import urllib.parse
 import bs4
+import numpy as np
 from lxml import etree
 from datetime import datetime, timedelta, date
 from typing import Tuple, List
@@ -86,9 +87,9 @@ def vg_get_pcf(
         res = requests.get(url, headers=headers)
         holdings = res.json()["holding"]
         df = pd.DataFrame(holdings)
-        if (raw_path):
-            df.to_excel(f"{raw_path}\{ticker}_pcf.xlsx", index=False) 
-        return df 
+        if raw_path:
+            df.to_excel(f"{raw_path}\{ticker}_pcf.xlsx", index=False)
+        return df
     except Exception as e:
         print(e)
         return pd.DataFrame()
@@ -243,6 +244,9 @@ def vg_get_historical_nav_prices(
 
     if raw_path:
         df = pd.DataFrame(flat)
+        df["date"] = pd.to_datetime(df["date"])
+        df["date"] = df["date"].dt.strftime("%Y-%m-%d")
+
         df.to_excel(
             f"{raw_path}/{ticker}_{today_date_str}_all_nav_prices.xlsx", index=False
         )
@@ -250,8 +254,80 @@ def vg_get_historical_nav_prices(
     return flat
 
 
+def vg_summary_book(ticker: str, date_is_not_updated: bool = False) -> pd.DataFrame:
+    def get_next_idx(df, current_idx):
+        after = df.truncate(before=current_idx).iloc[1:]
+        return after.index[0] if 0 < len(after) else None
+
+    def get_prev_idx(df, current_idx):
+        before = df.truncate(after=current_idx).iloc[:-1]
+        return before.index[-1] if 0 < len(before) else None
+
+    fund_flow_data_path = (
+        f"C:/Users/chris/ETF_Fund_Flows/data/flow/{ticker}_fund_flow_data.xlsx"
+    )
+    fund_data_path = f"C:/Users/chris/ETF_Fund_Flows/data/yahoofin/{ticker}_yahoofin_historical_data.xlsx"
+    if date_is_not_updated:
+        nav_price_path = r"C:\Users\chris\ETF_Fund_Flows\data\vanguard\EDV_10-23-2023_all_nav_prices.xlsx"
+    else:
+        current_date = datetime.today().strftime("%m-%d-%Y")
+        nav_price_path = f"C:/Users/chris/ETF_Fund_Flows/data/vanguard/{ticker}_{current_date}_all_nav_prices.xlsx"
+
+    fund_flow_df = pd.read_excel(fund_flow_data_path, parse_dates=["asOf"], index_col=0)
+    fund_flow_df.index.names = ["Date"]
+    fund_flow_df.rename(columns={"value": "flow"}, inplace=True)
+    fund_flow_df["flow"] = fund_flow_df["flow"].apply(lambda x: x * 1e6)
+    fund_flow_df.replace(np.nan, 0, inplace=True)
+
+    nav_df = pd.read_excel(nav_price_path, parse_dates=["date"]).sort_values("date")
+    nav_df["date"] = pd.to_datetime(nav_df["date"], format="%m/%d/%Y")
+    nav_df = nav_df[nav_df["date"].dt.year == 2023]
+    nav_df.set_index("date", inplace=True)
+
+    fund_data_df = pd.read_excel(fund_data_path, parse_dates=["Date"], index_col=0)
+
+    df = pd.concat([fund_data_df, nav_df, fund_flow_df], axis=1)
+    df = df.dropna(subset=["navPrice", "flow"])
+
+    df["navPrice"] = df["navPrice"].str.replace("$", "")
+    df["navPrice"] = df["navPrice"].str.replace(",", "")
+    df["navPrice"] = df["navPrice"].astype("float")
+
+    df["Premium/Discount"] = (df["Close"] - df["navPrice"]) / df["navPrice"]
+    df["Premium/Discount Adjusted"] = (df["Adj Close"] - df["navPrice"]) / df[
+        "navPrice"
+    ]
+
+    # calculate shares outstanding
+    df["Estimated Daily Creation Units"] = df["flow"] / df["navPrice"]
+    shares_outstanding_starting = {"date": "2023-09-29", "shares": 31050000}
+    df["Estimated Shares Outstanding"] = np.nan
+    df.at[
+        shares_outstanding_starting["date"], "Estimated Shares Outstanding"
+    ] = shares_outstanding_starting["shares"]
+    for idx in df.index:
+        if idx > datetime.strptime(shares_outstanding_starting["date"], "%Y-%m-%d"):
+            df.loc[idx, "Estimated Shares Outstanding"] = (
+                df.loc[get_prev_idx(df, idx), "Estimated Shares Outstanding"]
+                + df.loc[idx, "Estimated Daily Creation Units"]
+            )
+    for idx in reversed(df.index):
+        if idx < datetime.strptime(shares_outstanding_starting["date"], "%Y-%m-%d"):
+            df.loc[idx, "Estimated Shares Outstanding"] = (
+                df.loc[get_next_idx(df, idx), "Estimated Shares Outstanding"]
+                - df.loc[idx, "Estimated Daily Creation Units"]
+            )
+
+    df.head()
+    df.to_excel(
+        f"C:/Users/chris/ETF_Fund_Flows/data/vanguard/{current_date}_summary.xlsx"
+    )
+
+    return df
+
+
 if __name__ == "__main__":
-    ticker = "BND"
+    ticker = "EDV"
     # df = vg_get_pcf(ticker)
     # print(df)
 
@@ -262,9 +338,9 @@ if __name__ == "__main__":
     #     ticker, None, r"C:\Users\chris\ETF_Fund_Flows\data\other\2023-10-08_vg_fund_info.xlsx"
     # )
 
-    raw_path = r"C:\Users\chris\ETF_Fund_Flows\data\other"
+    # raw_path = r"C:\Users\chris\ETF_Fund_Flows\data\other"
     # ll = vg_get_historical_nav_prices(ticker, raw_path)
     # print(ll)
 
-    pcf_df = vg_get_pcf("VTV", raw_path=raw_path)
-    print('sum shares ', pcf_df["shareQuantity"].sum())
+    df = vg_summary_book(ticker)
+    print(df)

@@ -9,7 +9,7 @@ from fund_flows import (
     fetch_new_bearer_token,
     multi_fetch_fund_flow_data,
 )
-from vg_etf_nav import vg_get_historical_nav_prices
+from vg import vg_get_historical_nav_prices
 from yahoo_finance import multi_download_historical_data_yahoofinance
 from yields_data import download_multi_year_treasury_par_yield_curve_rate
 
@@ -46,7 +46,7 @@ if __name__ == "__main__":
     start = time.time()
 
     cj = browser_cookie3.chrome()
-    tickers = ["VGIT", "VGLT"]
+    tickers = ["EDV", "ZROZ", "TLT", "VGLT"]
     years = [2023, 2022, 2021, 2020, 2019]
     date_from = datetime(2023, 1, 1)
     date_to = datetime.today()
