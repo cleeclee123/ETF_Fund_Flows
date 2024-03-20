@@ -1,14 +1,17 @@
-import requests
-import pandas as pd
-from datetime import datetime, date
-import webbrowser
+import asyncio
 import http
-import browser_cookie3
 import os
 import time
+import webbrowser
+from datetime import date, datetime
+from typing import Dict, List
+
 import aiohttp
-import asyncio
-from typing import List, Dict
+import brotli
+
+import pandas as pd
+import requests
+import ujson as json
 
 
 def fetch_new_bearer_token(
@@ -48,7 +51,8 @@ def fetch_new_bearer_token(
             }
             cookies["_gat_G-NFBGF6073J"] = 1
             cookies["kw.pv_session	"] = 10
-            cookies["kw.session_ts"] = "1697501453497"  # find dynmaic way to get this
+            # find dynmaic way to get this
+            cookies["kw.session_ts"] = "1697501453497"
             cookies_str = "; ".join(
                 [f"{key}={value}" for key, value in cookies.items()]
             )
@@ -72,117 +76,141 @@ def fetch_new_bearer_token(
 
 
 def fetch_fund_flow_data(
-    ticker, bearerToken: str, date_from: date, date_to: date, raw_path: str
+    ticker, date_from: date, date_to: date, raw_path: str = None
 ) -> pd.DataFrame:
-    if not bearerToken:
-        return None
-
-    headers = {
-        "accept": "*/*",
-        "accept-language": "en-US,en;q=0.9",
-        "authorization": f"Bearer {bearerToken}",
-        "sec-ch-ua": '"Google Chrome";v="117", "Not;A=Brand";v="8", "Chromium";v="117"',
-        "sec-ch-ua-mobile": "?0",
-        "sec-ch-ua-platform": '"Windows"',
-        "sec-fetch-dest": "empty",
-        "sec-fetch-mode": "cors",
-        "sec-fetch-site": "same-site",
-        "Origin": "https://www.etf.com",
-        "Referer": "https://www.etf.com/",
-        "Referrer-Policy": "strict-origin-when-cross-origin",
-        "Sec-Ch-Ua": '"Google Chrome";v="117", "Not;A=Brand";v="8", "Chromium";v="117"',
-        "Sec-Ch-Ua-Mobile": "?0",
-        "Sec-Ch-Ua-Platform": '"Windows"',
-        "Sec-Fetch-Dest": "empty",
-        "Sec-Fetch-Mode": "cors",
-        "Sec-Fetch-Site": "same-site",
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/117.0.0.0 Safari/537.36",
-    }
     date_from_str = date_from.strftime("%Y-%m-%d").replace("-", "")
     date_to_str = date_to.strftime("%Y-%m-%d").replace("-", "")
+    headers = {
+        "authority": "api-prod.etf.com",
+        "method": "GET",
+        "path": f"/private/apps/fundflows/{ticker}/charts?startDate={date_from_str}&endDate={date_to_str}",
+        "scheme": "https",
+        "Accept": "application/json,text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7",
+        "Accept-Encoding": "gzip, deflate, br, zstd",
+        "Accept-Language": "en-US,en;q=0.9",
+        "Cache-Control": "max-age=0",
+        "Content-Type": "application/json",
+        "Cookie": "__qca=P0-78624358-1697326913816; _hjSessionUser_2686080=eyJpZCI6IjJhY2UwYWQzLTZiZjktNWQzMi1hMDRiLTBkZjc2Njg5OTUzNSIsImNyZWF0ZWQiOjE2OTczMjY5MTQzNzIsImV4aXN0aW5nIjp0cnVlfQ==; _pctx=%7Bu%7DN4IgrgzgpgThIC4B2YA2qA05owMoBcBDfSREQpAeyRCwgEt8oBJAEzIFYAODgdgGZ%2BAFg4AmfhwAMARin9eQ6SAC%2BQA; _pcid=%7B%22browserId%22%3A%22ls837s5u647clcer%22%7D; _pcus=eyJ1c2VyU2VnbWVudHMiOm51bGx9; cX_P=ls837s5u647clcer; cX_G=cx%3A31419pten9my114dodksigmt0w%3A2w5vkseoawmov; __pat=-14400000; _gid=GA1.2.878539956.1710930385; kw.session_ts=1710930385367; cf_clearance=_Xo3DCDqxM6L9iOS6tsVkEgtIUGyTsmbwh_ww79.bFc-1710930383-1.0.1.1-0sZuWIrXJ7rv4gcX3KcCqPF2r6FGrUGEijvjJcfD08YR8dnuGzK_4_UW8.XsBgjsfnPsWxXQ1mxsrTnq1ol9yg; _sp_ses.a8c0=*; _hjSession_2686080=eyJpZCI6ImE2ZDUyNWNkLWUxNDQtNDRhNy1iYzJkLTY2NmE1NDUyMmRlNyIsImMiOjE3MTA5MzAzODU2ODUsInMiOjAsInIiOjAsInNiIjowLCJzciI6MCwic2UiOjAsImZzIjowfQ==; __pvi=eyJpZCI6InYtbHR6bnJ4bGtrNHZyNzJpMiIsImRvbWFpbiI6Ii5ldGYuY29tIiwidGltZSI6MTcxMDkzMDQ5MzYxN30%3D; _ga=GA1.2.45362378.1697326914; __tbc=%7Bkpex%7DHoiIrZMnfHXlKEKIuLWWixXAyQTR6JNrJys6wjwcc2lTRRif_AqPojRPKKlo0Foa; xbc=%7Bkpex%7Dwz8izwFXIkg9sLpEIXtmh2H8PPtpnov1kwV3o-yvpAhSIN9xZxi0CVldRjvsBH-PQ2q12g4O6QZEcpx8Lh9zGup4ghrS39tI-rQV5xk_RkbMXAfb_69fMtXht7dRtG9i6_rLDP2KGnzxEIZhgdwQDVB8uZdftFRej0djNeP8UV9P4VBi7J8cAqvnlREj-TH1Jm2QG-2i2LSYd_FXlLfyLVkNQzqs_-gxfVDq7IR-lKJEJA0PkVslVZWlXnKJZ0QbZWjDvlRJOAC-Qms5g3fNIza6SU3m0GktCfanTrQUILx4AsuLBYUV5bK5STOxANiU7yP0OMNcU_-yQbgv9UUYDnNwV_Z5oXQ4LGMgE4hwMNz9pTc6IebE_QETzHW0sT5BoVf9AgdpiUAxNlGnpzURMxm-1boONnpX8r_qSCHaVCfskXRVVqYOnxVPtdQjmIUvKsAbtwI_tY7JZmtpw7tZl7_5jMf8NyOm33aya9WY6rTUXPlwt3vbTki3-pDasRBl; FCNEC=%5B%5B%22AKsRol9dHWFn6ShMul76v_0h28xOXK6BdWrQQvZ1EsOCxA-gLnNwhYgJWJ3bQK79lz9oHInBb2eylud_9UeULvhLVjMydCU1-t_4SEjtc20bZSxPynFQMc48i2iGqWN-HqC7Akcz9g4VfIoTQGGp9InyZsc2PAB2VQ%3D%3D%22%5D%5D; _ga_NFBGF6073J=GS1.1.1710930385.56.1.1710930495.56.0.0; kw.pv_session=6; _sp_id.a8c0=6c8d3171-ec52-41cf-91cc-d9602e221d09.1697326914.53.1710930614.1710602081.2bfd5bb2-a34d-4deb-990d-e99ef8ae14a4",
+        "Dnt": "1",
+        "If-None-Match": "W/\"8b09-E20zV8i3lylx2EqkjQDu72dYFSE\"",
+        "Sec-Ch-Ua": "\"Chromium\";v=\"122\", \"Not(A:Brand\";v=\"24\", \"Google Chrome\";v=\"122\"",
+        "Sec-Ch-Ua-Mobile": "?0",
+        "Sec-Ch-Ua-Platform": "\"Windows\"",
+        "Sec-Fetch-Dest": "document",
+        "Sec-Fetch-Mode": "navigate",
+        "Sec-Fetch-Site": "none",
+        "Sec-Fetch-User": "?1",
+        "Upgrade-Insecure-Requests": "1",
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36"
+    }
 
-    url = f"https://apiprod.etf.com/private/apps/fundflows/{ticker}/charts?startDate={date_from_str}&endDate={date_to_str}"
-    print("url", url)
+    url = f"https://api-prod.etf.com/private/apps/fundflows/{
+        ticker}/charts?startDate={date_from_str}&endDate={date_to_str}"
     res = requests.get(url, headers=headers)
+    if res.ok:
+        if 'br' in res.headers.get('Content-Encoding', ''):
+            try:
+                decompressed_data = brotli.decompress(res.content)
+                json_data = json.loads(decompressed_data.decode('utf-8'))
+            except brotli.Error as e:
+                print(f"Decompression error: {e}")
+                if "PADDING_2" in str(e):
+                    print("Requests has already decompressed brotli data")
+                    try:
+                        json_data = json.loads(res.content)
+                    except Exception as e:
+                        print(e)
+                        return None
+        else:
+            try:
+                json_data = res.json()
+            except ValueError as e:
+                print(f"Error parsing JSON: {e}")
+                return None
 
-    if res.status_code == 200:
-        json = res.json()
-        wb_name = f"{raw_path}/{ticker}_fund_flow_data.xlsx"
-        data = json["data"]["results"]["data"]
-        df = pd.DataFrame(data)
-        df.to_excel(wb_name, index=False)
-        return df
+        try:
+            data = json_data["data"]["results"]["data"]
+            df = pd.DataFrame(data)
+            if raw_path:
+                wb_name = f"{raw_path}/{ticker}_fund_flow_data.xlsx"
+                df.to_excel(wb_name, index=False)
+            return df
+        except (KeyError, TypeError) as e:
+            print(f"Error processing data: {e}")
+            return None
 
     print(f"Status Code: {res.status_code} - Fetch Fund Flows Data Failed")
     return None
 
 
-def get_etf_headers(
-    bearer_token: str = None, cj: http.cookiejar = None
-) -> Dict[str, str]:
-    if not bearer_token:
-        bearer_token = fetch_new_bearer_token(cj)["fundApiKey"]
-
-    return {
-        "accept": "*/*",
-        "accept-language": "en-US,en;q=0.9",
-        "authorization": f"Bearer {bearer_token}",
-        "sec-ch-ua": '"Google Chrome";v="117", "Not;A=Brand";v="8", "Chromium";v="117"',
-        "sec-ch-ua-mobile": "?0",
-        "sec-ch-ua-platform": '"Windows"',
-        "sec-fetch-dest": "empty",
-        "sec-fetch-mode": "cors",
-        "sec-fetch-site": "same-site",
-        "Origin": "https://www.etf.com",
-        "Referer": "https://www.etf.com/",
-        "Referrer-Policy": "strict-origin-when-cross-origin",
-        "Sec-Ch-Ua": '"Google Chrome";v="117", "Not;A=Brand";v="8", "Chromium";v="117"',
-        "Sec-Ch-Ua-Mobile": "?0",
-        "Sec-Ch-Ua-Platform": '"Windows"',
-        "Sec-Fetch-Dest": "empty",
-        "Sec-Fetch-Mode": "cors",
-        "Sec-Fetch-Site": "same-site",
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/117.0.0.0 Safari/537.36",
-    }
-
-
 def multi_fetch_fund_flow_data(
     tickers: List[int],
-    bearer_token: str,
     date_from: date,
     date_to: date,
-    raw_path: str,
+    raw_path: str = None,
     return_df=False,
-    cj: http.cookiejar = None,
+    run_brotli_decompression=False,
 ) -> Dict[str, List[Dict[str, str]] | pd.DataFrame]:
     async def fetch(
         session: aiohttp.ClientSession, url: str, curr_ticker: int
     ) -> pd.DataFrame:
         try:
-            headers = get_etf_headers(bearer_token, cj)
+            headers = {
+                "authority": "api-prod.etf.com",
+                "method": "GET",
+                "path": url.split("/", 1)[1],
+                "scheme": "https",
+                "Accept": "application/json,text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7",
+                "Accept-Encoding": "gzip, deflate, br, zstd",
+                "Accept-Language": "en-US,en;q=0.9",
+                "Cache-Control": "max-age=0",
+                "Content-Type": "application/json",
+                "Cookie": "__qca=P0-78624358-1697326913816; _hjSessionUser_2686080=eyJpZCI6IjJhY2UwYWQzLTZiZjktNWQzMi1hMDRiLTBkZjc2Njg5OTUzNSIsImNyZWF0ZWQiOjE2OTczMjY5MTQzNzIsImV4aXN0aW5nIjp0cnVlfQ==; _pctx=%7Bu%7DN4IgrgzgpgThIC4B2YA2qA05owMoBcBDfSREQpAeyRCwgEt8oBJAEzIFYAODgdgGZ%2BAFg4AmfhwAMARin9eQ6SAC%2BQA; _pcid=%7B%22browserId%22%3A%22ls837s5u647clcer%22%7D; _pcus=eyJ1c2VyU2VnbWVudHMiOm51bGx9; cX_P=ls837s5u647clcer; cX_G=cx%3A31419pten9my114dodksigmt0w%3A2w5vkseoawmov; __pat=-14400000; _gid=GA1.2.878539956.1710930385; kw.session_ts=1710930385367; cf_clearance=_Xo3DCDqxM6L9iOS6tsVkEgtIUGyTsmbwh_ww79.bFc-1710930383-1.0.1.1-0sZuWIrXJ7rv4gcX3KcCqPF2r6FGrUGEijvjJcfD08YR8dnuGzK_4_UW8.XsBgjsfnPsWxXQ1mxsrTnq1ol9yg; _sp_ses.a8c0=*; _hjSession_2686080=eyJpZCI6ImE2ZDUyNWNkLWUxNDQtNDRhNy1iYzJkLTY2NmE1NDUyMmRlNyIsImMiOjE3MTA5MzAzODU2ODUsInMiOjAsInIiOjAsInNiIjowLCJzciI6MCwic2UiOjAsImZzIjowfQ==; __pvi=eyJpZCI6InYtbHR6bnJ4bGtrNHZyNzJpMiIsImRvbWFpbiI6Ii5ldGYuY29tIiwidGltZSI6MTcxMDkzMDQ5MzYxN30%3D; _ga=GA1.2.45362378.1697326914; __tbc=%7Bkpex%7DHoiIrZMnfHXlKEKIuLWWixXAyQTR6JNrJys6wjwcc2lTRRif_AqPojRPKKlo0Foa; xbc=%7Bkpex%7Dwz8izwFXIkg9sLpEIXtmh2H8PPtpnov1kwV3o-yvpAhSIN9xZxi0CVldRjvsBH-PQ2q12g4O6QZEcpx8Lh9zGup4ghrS39tI-rQV5xk_RkbMXAfb_69fMtXht7dRtG9i6_rLDP2KGnzxEIZhgdwQDVB8uZdftFRej0djNeP8UV9P4VBi7J8cAqvnlREj-TH1Jm2QG-2i2LSYd_FXlLfyLVkNQzqs_-gxfVDq7IR-lKJEJA0PkVslVZWlXnKJZ0QbZWjDvlRJOAC-Qms5g3fNIza6SU3m0GktCfanTrQUILx4AsuLBYUV5bK5STOxANiU7yP0OMNcU_-yQbgv9UUYDnNwV_Z5oXQ4LGMgE4hwMNz9pTc6IebE_QETzHW0sT5BoVf9AgdpiUAxNlGnpzURMxm-1boONnpX8r_qSCHaVCfskXRVVqYOnxVPtdQjmIUvKsAbtwI_tY7JZmtpw7tZl7_5jMf8NyOm33aya9WY6rTUXPlwt3vbTki3-pDasRBl; FCNEC=%5B%5B%22AKsRol9dHWFn6ShMul76v_0h28xOXK6BdWrQQvZ1EsOCxA-gLnNwhYgJWJ3bQK79lz9oHInBb2eylud_9UeULvhLVjMydCU1-t_4SEjtc20bZSxPynFQMc48i2iGqWN-HqC7Akcz9g4VfIoTQGGp9InyZsc2PAB2VQ%3D%3D%22%5D%5D; _ga_NFBGF6073J=GS1.1.1710930385.56.1.1710930495.56.0.0; kw.pv_session=6; _sp_id.a8c0=6c8d3171-ec52-41cf-91cc-d9602e221d09.1697326914.53.1710930614.1710602081.2bfd5bb2-a34d-4deb-990d-e99ef8ae14a4",
+                "Dnt": "1",
+                "If-None-Match": "W/\"8b09-E20zV8i3lylx2EqkjQDu72dYFSE\"",
+                "Sec-Ch-Ua": "\"Chromium\";v=\"122\", \"Not(A:Brand\";v=\"24\", \"Google Chrome\";v=\"122\"",
+                "Sec-Ch-Ua-Mobile": "?0",
+                "Sec-Ch-Ua-Platform": "\"Windows\"",
+                "Sec-Fetch-Dest": "document",
+                "Sec-Fetch-Mode": "navigate",
+                "Sec-Fetch-Site": "none",
+                "Sec-Fetch-User": "?1",
+                "Upgrade-Insecure-Requests": "1",
+                "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36"
+            }
             async with session.get(url, headers=headers) as response:
-                if response.status == 200:
-                    json = await response.json()
-                    data = json["data"]["results"]["data"]
-                    if not data or len(data) == 0:
-                        return (curr_ticker, None)
+                if response.ok:
+                    content = await response.text()
+                    if 'br' in response.headers.get('Content-Encoding', ''):
+                        if run_brotli_decompression:
+                            decompressed_data = brotli.decompress(content)
+                            json_data = json.loads(
+                                decompressed_data.decode('utf-8'))
+                        else:
+                            json_data = json.loads(content)
+                    else:
+                        json_data = await response.json()
 
+                    data = json_data["data"]["results"]["data"]
                     df = pd.DataFrame(data)
-                    wb_name = f"{raw_path}/{curr_ticker}_fund_flow_data.xlsx"
-                    df.to_excel(wb_name, index=False)
+                    if raw_path:
+                        wb_name = f"{
+                            raw_path}/{curr_ticker}_fund_flow_data.xlsx"
+                        df.to_excel(wb_name, index=False)
                     return (curr_ticker, data) if not return_df else (curr_ticker, df)
                 else:
                     raise Exception(f"Bad Status: {response.status}")
         except Exception as e:
-            print(e)
-            return (None, None)
+            print(f"Error with {curr_ticker}", e)
+            return (curr_ticker, None)
 
     async def get_promises(session: aiohttp.ClientSession):
         tasks = []
         for ticker in tickers:
             date_from_str = date_from.strftime("%Y-%m-%d").replace("-", "")
             date_to_str = date_to.strftime("%Y-%m-%d").replace("-", "")
-            curr_url = f"https://apiprod.etf.com/private/apps/fundflows/{ticker}/charts?startDate={date_from_str}&endDate={date_to_str}"
+            curr_url = f"https://api-prod.etf.com/private/apps/fundflows/{
+                ticker}/charts?startDate={date_from_str}&endDate={date_to_str}"
             task = fetch(session, curr_url, ticker)
             tasks.append(task)
 
@@ -204,40 +232,6 @@ def multi_fetch_fund_flow_data(
     return clean_dict
 
 
-def get_fund_flow_file_path_by_ticker(ticker: str, cj: http.cookiejar = None):
-    current_directory = os.getcwd()
-    path = f"{current_directory}/flows"
-    files = sorted(
-        os.listdir(path),
-    )
-    tickers_with_data = [x for x in files if x.split("_")[0].lower() == ticker.lower()]
-    date_from = datetime(2023, 1, 1)
-    date_to = datetime.today()
-
-    if len(tickers_with_data) == 0:
-        try:
-            token = fetch_new_bearer_token(cj)
-            bearer = token["fundApiKey"]
-            fetch_fund_flow_data(
-                ticker,
-                bearer,
-                date_from,
-                date_to,
-                path,
-            )
-        except Exception as e:
-            bearer = "0QE2aa6trhK3hOmkf5zXwz6Riy7UWdk4V6HYw3UdZcRZV3myoV9MOfwNLL6FKHrpTN7IF7g12GSZ6r44jAfjte0B3APAaQdWRWZtW2qhYJrAXXwkpYJDFdkCng97prr7N4JAXkCI1zB7EiXrFEY8CIQclMLgQk2XHBZJiqJSIEgtWckHK3UPLfm12X9rhME9ac7gvcF3fWDo8A66X6RHXr3g9jzKeC62th75S1t6juvWjQYDCz65i7UlRfTVWDVV"
-            fetch_fund_flow_data(
-                ticker,
-                bearer,
-                date_from,
-                date_to,
-                path,
-            )
-
-    return f"{path}/{ticker}_fund_flow_data.xlsx"
-
-
 def fund_flow_data_fetcher(
     tickers: List[str],
     raw_path: str = None,
@@ -245,152 +239,22 @@ def fund_flow_data_fetcher(
     date_to: datetime = datetime.today(),
 ):
     raw_path = raw_path or r"C:\Users\chris\fund_flows\flows"
-    bearer = "0QE2aa6trhK3hOmkf5zXwz6Riy7UWdk4V6HYw3UdZcRZV3myoV9MOfwNLL6FKHrpTN7IF7g12GSZ6r44jAfjte0B3APAaQdWRWZtW2qhYJrAXXwkpYJDFdkCng97prr7N4JAXkCI1zB7EiXrFEY8CIQclMLgQk2XHBZJiqJSIEgtWckHK3UPLfm12X9rhME9ac7gvcF3fWDo8A66X6RHXr3g9jzKeC62th75S1t6juvWjQYDCz65i7UlRfTVWDVV"
     return multi_fetch_fund_flow_data(
-        tickers, bearer, date_from, date_to, raw_path, return_df=True
+        tickers, date_from, date_to, raw_path, return_df=True
     )
 
 
 if __name__ == "__main__":
-    # example
-    # cj = browser_cookie3.chrome()
-
     t1 = time.time()
 
     date_from = datetime(2000, 1, 1)
     date_to = datetime.today()
     raw_path = r"C:\Users\chris\fund_flows\flows"
 
-    bearer = "0QE2aa6trhK3hOmkf5zXwz6Riy7UWdk4V6HYw3UdZcRZV3myoV9MOfwNLL6FKHrpTN7IF7g12GSZ6r44jAfjte0B3APAaQdWRWZtW2qhYJrAXXwkpYJDFdkCng97prr7N4JAXkCI1zB7EiXrFEY8CIQclMLgQk2XHBZJiqJSIEgtWckHK3UPLfm12X9rhME9ac7gvcF3fWDo8A66X6RHXr3g9jzKeC62th75S1t6juvWjQYDCz65i7UlRfTVWDVV"
-
-    ust_tickers = [
-        "UTWO",
-        "UST",
-        "PST",
-        "TBF",
-        "TBT",
-        "TBX",
-        "TTT",
-        "UBT",
-        "GOVT",
-        "TMV",
-        "TYD",
-        "TYO",
-    ]
-    long_bond_tickers = ["EDV", "ZROZ", "TLT", "TMF", "VGLT", "TLTW", "GOVZ"]
-    hy_tickers = ["HYG", "JNK", "SHYG", "USHY", "HYLB", "SJNK", "SPHY", "HYGW", "ANGL"]
-    senior_loan_tickers = [
-        "BKLN",
-        "SRLN",
-        "FTSL",
-        "FLBL",
-        "FLRT",
-        "SEIX",
-        "LONZ",
-        "BRLN",
-    ]
-    yen_tickers = ["FXY", "YCS", "YCL"]
-    japan_tickers = ["EWJ", "BBJP", "DXJ", "HEWJ", "JPXN"]
-    jpy_tickers = yen_tickers + japan_tickers
-    meme_tickers = ["SPY", "QQQ", "VOO", "TQQQ", "IWF", "IWM"]
-
-    clo_tickers = ["JAAA", "AAA", "CLOA", "JBBB", "CLOI", "CLOZ", "ICLO"]
-    mbs_tickers = ["JSI", "MBB", "VMBS", "SPMB", "LMBS", "JMBS", "CMBS", "MTBA"]
-    sec_prods_tickers = clo_tickers + mbs_tickers
-
-    oil_tickers = ["USO", "UCO", "SCO"]
-    nat_gas_tickers = ["BOIL", "UNG", "KOLD"]
-    energy_tickers = oil_tickers + nat_gas_tickers + ["VDE", "XLE", "XOP"]
-
-    sp500_tickers = [
-        "SPY",
-        "IVV",
-        "VOO",
-        "SPXL",
-        "UPRO",
-        "SH",
-        "SPXU",
-        "SPXS",
-        "SPUU",
-        "RSP",
-    ]
-
-    credit_tickers = ["VGIT", "VGLT", "LQD", "ICSH", "FLOT"]
-
-    vix_tickers = ["VXX", "UVXY", "SVXY", "VIXY", "SVOL"]
-
-    metals_tickers = ["GLD", "IAU", "SGOL", "GLTR", "SLV", "GLDM"]
-
-    china_tickers = ["MCHI", "KWEB", "FXI", "YINN", "CWEB", "CHIQ"]
-    hk_tickers = ["EWH", "FLHK"]
-
-    india_tickers = ["INDA", "EPI", "SMIN", "PIN", "INCO", "INQQ"]
-
-    alts_tickers = ["TUA", "TYA", "SVOL", "PFIX"]
-
-    degen_tickers = ["SOXS"]
-
-    em_tickers = [
-        "EMXC",
-        "VWO",
-        "IEMG",
-        "EEM",
-        "EMB",
-        "KEMX",
-        "EMLC",
-        "EBND",
-        "EMB",
-        "VWOB",
-        "PCY",
-    ]
-
-    mbs_tickers = ["VMBS", "MBB", "SPMB", "JMBS"]
-
-    all_tickers = (
-        ust_tickers
-        + long_bond_tickers
-        + hy_tickers
-        + senior_loan_tickers
-        + jpy_tickers
-        + sec_prods_tickers
-        + energy_tickers
-        + sp500_tickers
-        + credit_tickers
-        + vix_tickers
-        + metals_tickers
-        + china_tickers
-        + hk_tickers
-        + india_tickers
-        + alts_tickers
-        + degen_tickers
-        + em_tickers
-        + ["BDRY"]
-        + mbs_tickers
-    )
-    # data = multi_fetch_fund_flow_data(all_tickers, bearer, date_from, date_to, raw_path)
-
-    # print(data)
-
-    # for ticker, flow in data.items():
-    #     print("Fund Flow Data Date: ", ticker, flow.pop())
-
-    
     tickers_test = ["fucjy", "QQQ"]
-    data = multi_fetch_fund_flow_data(tickers_test, bearer, date_from, date_to, raw_path)
-    print(data)
-    
-    # tickers = ["QQQ"]
-    # for ticker in tickers:
-    #     try:
-    #         token = fetch_new_bearer_token(cj)
-    #         bearer = token["fundApiKey"]
-    #         str = fetch_fund_flow_data(ticker, bearer, date_from, date_to, raw_path)
-    #         print(str)
-    #     except Exception as e:
-    #         bearer = "0QE2aa6trhK3hOmkf5zXwz6Riy7UWdk4V6HYw3UdZcRZV3myoV9MOfwNLL6FKHrpTN7IF7g12GSZ6r44jAfjte0B3APAaQdWRWZtW2qhYJrAXXwkpYJDFdkCng97prr7N4JAXkCI1zB7EiXrFEY8CIQclMLgQk2XHBZJiqJSIEgtWckHK3UPLfm12X9rhME9ac7gvcF3fWDo8A66X6RHXr3g9jzKeC62th75S1t6juvWjQYDCz65i7UlRfTVWDVV"
-    #         str = fetch_fund_flow_data(ticker, bearer, date_from, date_to)
-    #         print(str)
-    #         print(e)
+    df_dict = multi_fetch_fund_flow_data(
+        tickers=tickers_test, date_from=date_from, date_to=date_to, return_df=True, raw_path=raw_path)
+    print(df_dict)
 
     t2 = time.time()
     print(f"{t2 - t1} seconds")

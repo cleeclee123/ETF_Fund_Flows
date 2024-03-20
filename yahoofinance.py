@@ -142,7 +142,7 @@ def multi_download_historical_data_yahoofinance(
             async with session.get(res_url, headers=headers) as response:
                 if response.status == 200:
                     # with open(full_file_path, "wb") as f:
-                    async with aiofiles.open(full_file_path, mode='wb') as f:
+                    async with aiofiles.open(full_file_path, mode="wb") as f:
                         chunk_size = 10 * 1024
                         while True:
                             chunk = await response.content.read(chunk_size)
@@ -153,14 +153,14 @@ def multi_download_historical_data_yahoofinance(
                     if write_to_xlsx:
                         renamed = await convert_csv_to_excel(full_file_path)
                         return pd.read_excel(renamed)
-                    
+
                     df = pd.read_csv(full_file_path)
                     os.remove(full_file_path)
                     return df
-                
+
                 else:
                     raise Exception(f"Bad Status: {response.status}")
-        
+
         except Exception as e:
             print(e)
             return pd.DataFrame()
@@ -340,9 +340,11 @@ def get_options_chain_yahoofinance(
                         call_raw_dict = call_raw.items() if call_raw else None
                         call = (
                             {
-                                key: value.get("raw", value)
-                                if isinstance(value, dict)
-                                else value
+                                key: (
+                                    value.get("raw", value)
+                                    if isinstance(value, dict)
+                                    else value
+                                )
                                 for key, value in call_raw_dict
                                 if call_raw_dict
                             }
@@ -354,9 +356,11 @@ def get_options_chain_yahoofinance(
                         put_raw_dict = put_raw.items() if put_raw else None
                         put = (
                             {
-                                key: value.get("raw", value)
-                                if isinstance(value, dict)
-                                else value
+                                key: (
+                                    value.get("raw", value)
+                                    if isinstance(value, dict)
+                                    else value
+                                )
                                 for key, value in put_raw_dict
                                 if put_raw_dict
                             }
@@ -474,6 +478,7 @@ def get_futures_chain(
 ):
     pass
 
+
 def yahoofinance_data_fetcher():
     pass
     # tar -xvzf C:\PATH\TO\SOURCE\filename.tar.gz -C C:\PATH\TO\DESTINATION
@@ -487,7 +492,7 @@ if __name__ == "__main__":
     tickers = ["CCRV", "COMT", "TLTW", "LQDW", "HYGW", "BRLN"]
     vol_indices = ["^MOVE", "^VIX"]
     ir_futures = ["ZT=F", "ZF=F", "ZN=F", "ZB=F", "SR3=F"]
-    
+
     oil_tickers = ["USO", "UCO", "SCO"]
     nat_gas_tickers = ["BOIL", "UNG", "KOLD"]
     energy_tickers = oil_tickers + nat_gas_tickers + ["VDE", "XLE", "XOP"]
@@ -595,15 +600,44 @@ if __name__ == "__main__":
         + ["BDRY"]
         + mbs_tickers
     )
-    
+
+    hf_tickers = [
+        "RYLD",
+        "DBMF",
+        "RPAR",
+        "RLY",
+        "MNA",
+        "TDSC",
+        "WTMF",
+        "CAOS",
+        "FVC",
+        "ADME",
+        "GDMA",
+        "GMOM",
+        "FMF",
+        "MRSK",
+        "PFIX",
+        "PHDG",
+        "PUTW",
+        "UPAR",
+        "ARB",
+        "PPI",
+        "ZHDG",
+        "ROMO",
+        "GHTA",
+        "DBEH",
+        "FORH",
+    ]
+
     dict = multi_download_historical_data_yahoofinance(
-        all_tickers,
+        hf_tickers,
         from_date,
         to_date,
         r"C:\Users\chris\fund_flows\yahoofinance",
         max_date=True,
+        write_to_xlsx=True,
     )
-    
+
     print(dict)
 
     # list = get_option_expiration_dates_yahoofinance('TLT')
